@@ -13,6 +13,8 @@ import streamlit as st
 import sqlalchemy as sql
 import pandas as pd
 import asyncio
+import pdb
+import logging
 
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
 from langchain_openai import ChatOpenAI
@@ -22,11 +24,19 @@ from ai_data_science_team.agents import SQLDatabaseAgent
 # * APP INPUTS ----
 
 # MODIFY THIS TO YOUR DATABASE PATH IF YOU WANT TO USE A DIFFERENT DATABASE
+# DB_OPTIONS = {
+#     "Northwind Database": "sqlite:///data/northwind.db",
+# }
+
+import os
+
+# Get the absolute path to the apps directory (parent of current directory)
+db_path = "/Users/aelkhodary/Documents/GitHub/ai-data-science-team/data/northwind.db"
 DB_OPTIONS = {
-    "Northwind Database": "sqlite:///data/northwind.db",
+    "Northwind Database": f"sqlite:///{db_path}",
 }
 
-MODEL_LIST = ['gpt-4o-mini', 'gpt-4o']
+MODEL_LIST = ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo']
 
 TITLE = "Your SQL Database Agent"
 
@@ -60,9 +70,23 @@ db_option = st.sidebar.selectbox(
 
 st.session_state["PATH_DB"] = DB_OPTIONS.get(db_option)
 
-sql_engine = sql.create_engine(st.session_state["PATH_DB"])
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
-conn = sql_engine.connect()
+# Add debug points where needed, for example before database connection:
+logger.debug(f"Attempting to connect to database at: {db_path}")
+# pdb.set_trace()  # Uncomment this to pause execution here
+
+try:
+    sql_engine = sql.create_engine(st.session_state["PATH_DB"])
+    logger.debug("SQL Engine created successfully")
+    conn = sql_engine.connect()
+    logger.debug("Database connection established")
+except Exception as e:
+    logger.error(f"Database connection failed: {e}")
+    st.error(f"Database connection error: {e}")
+    st.stop()
 
 # * OpenAI API Key
 
@@ -154,11 +178,16 @@ if st.session_state["PATH_DB"] and (question := st.chat_input("Enter your questi
         st.chat_message("human").write(question)
         msgs.add_user_message(question)
         
+        # Add debug logging for the question handling
+        if question:
+            logger.debug(f"Received question: {question}")
+        
         # Run the app       
         error_occured = False
         try: 
             print(st.session_state["PATH_DB"])
             result = asyncio.run(handle_question(question))
+            logger.debug("Question processed successfully")
         except Exception as e:
             error_occured = True
             print(e)
